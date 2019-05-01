@@ -953,7 +953,7 @@ CLUSTER_SYNTHESIS_COMPLETE:
 	// Tests might not want to start a vault server and just want to verify
 	// the configuration.
 	if c.flagTestVerifyOnly {
-		return 0
+		goto TestVerifyOnly
 	}
 
 	// This needs to happen before we first unseal, so before we trigger dev
@@ -1126,6 +1126,8 @@ CLUSTER_SYNTHESIS_COMPLETE:
 		c.UI.Warn("")
 	}
 
+	// Continuing configuration testing at this point
+TestVerifyOnly:
 	// Initialize the HTTP servers
 	for _, ln := range lns {
 		handler := vaulthttp.Handler(&vault.HandlerProperties{
@@ -1146,6 +1148,7 @@ CLUSTER_SYNTHESIS_COMPLETE:
 			}
 		}
 
+		// server defaults
 		server := &http.Server{
 			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
@@ -1153,6 +1156,50 @@ CLUSTER_SYNTHESIS_COMPLETE:
 			IdleTimeout:       5 * time.Minute,
 			ErrorLog:          c.logger.StandardLogger(nil),
 		}
+
+		// override server defaults with config values for read/write/idle timeouts if configured
+		if readHeaderTimeoutInterface, ok := ln.config["http_read_header_timeout"]; ok {
+			readHeaderTimeout, err := parseutil.ParseDurationSecond(readHeaderTimeoutInterface)
+			if err != nil {
+				c.UI.Error(fmt.Sprintf("Could not parse a time value for http_read_header_timeout %v", readHeaderTimeout))
+				return 1
+			}
+			server.ReadHeaderTimeout = readHeaderTimeout
+		}
+
+		if readTimeoutInterface, ok := ln.config["http_read_timeout"]; ok {
+			readTimeout, err := parseutil.ParseDurationSecond(readTimeoutInterface)
+			if err != nil {
+				c.UI.Error(fmt.Sprintf("Could not parse a time value for http_read_timeout %v", readTimeout))
+				return 1
+			}
+			server.ReadTimeout = readTimeout
+		}
+
+		if writeTimeoutInterface, ok := ln.config["http_write_timeout"]; ok {
+			writeTimeout, err := parseutil.ParseDurationSecond(writeTimeoutInterface)
+			if err != nil {
+				c.UI.Error(fmt.Sprintf("Could not parse a time value for http_write_timeout %v", writeTimeout))
+				return 1
+			}
+			server.WriteTimeout = writeTimeout
+		}
+
+		if idleTimeoutInterface, ok := ln.config["http_idle_timeout"]; ok {
+			idleTimeout, err := parseutil.ParseDurationSecond(idleTimeoutInterface)
+			if err != nil {
+				c.UI.Error(fmt.Sprintf("Could not parse a time value for http_idle_timeout %v", idleTimeout))
+				return 1
+			}
+			server.IdleTimeout = idleTimeout
+		}
+
+		// Tests might not want to start a vault server and just want to verify
+		// the configuration.
+		if c.flagTestVerifyOnly {
+			return 0
+		}
+
 		go server.Serve(ln.Listener)
 	}
 
