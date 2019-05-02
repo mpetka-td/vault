@@ -87,6 +87,8 @@ jobs:
             # Run Ember tests
             mkdir -p test-results/qunit
             yarn run test
+      - store_artifacts:
+          path: test-results
       - store_test_results:
           path: test-results
 
@@ -145,8 +147,10 @@ jobs:
                 -timeout=40m \
                 -parallel=20 \
                 ${package_names}
+      - store_artifacts:
+          path: test-results
       - store_test_results:
-          path: test-reports
+          path: test-results
 
 workflows:
   version: 2
